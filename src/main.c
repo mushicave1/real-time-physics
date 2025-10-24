@@ -1,12 +1,57 @@
+#include "main.h"
+
 #include "glad/gl.h"
 #include <GLFW/glfw3.h>
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+
+void init_square(struct gl_object * obj);
+void draw_square(struct gl_object * obj, bool draw_indexed);
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action,
                   int mods) {
   if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
     glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
+
+
+const char *fragment_shader_code =
+"#version 330 core\n"
+"layout (location = 0) out vec4 frag_color;\n"
+"in vec2 v_tex_coords;\n"
+"void main() {\n"
+"    frag_color = vec4(v_tex_coords.x, v_tex_coords.y, 1.0, 1.0);\n"
+"}\n";
+
+
+const char *vertex_shader_code =
+"#version 330 core\n"
+"layout (location = 0) in vec3 a_position;\n"
+"layout (location = 1) in vec2 a_tex_coords;\n"
+"layout (location = 2) in vec3 a_normal;\n"
+"out vec2 v_tex_coords;\n"
+"void main() {\n"
+"    v_tex_coords = a_tex_coords;\n"
+"    gl_Position = vec4(a_position, 1.0);\n"
+"}\n";
+
+
+
+const float vertices[] = {
+  -0.5, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.5, -0.5, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+  0.5, 0.5, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+  -0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0
+};
+
+const int indices[] = {
+  0, 1, 2,
+  2, 3, 0
+};
+
 
 int main(void) {
   if (!glfwInit())
@@ -35,9 +80,16 @@ int main(void) {
 
   printf("OpenGL %s loaded\n", glGetString(GL_VERSION));
 
+  struct gl_object obj = {0};
+  obj.draw_count = sizeof(indices)/sizeof(indices[0]);
+  obj.draw_method = GL_TRIANGLES;
+  
   while (!glfwWindowShouldClose(window)) {
+    glViewport(0, 0, 600*2, 400*2);
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    draw_square(&obj, true);
 
     glfwPollEvents();
     glfwSwapBuffers(window);
@@ -45,4 +97,83 @@ int main(void) {
 
   glfwTerminate();
   return 0;
+}
+
+
+void init_square(struct gl_object * obj) 
+{
+    // Shader
+    // Create, compile, and check vertex shader
+    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertex_shader, 1, &vertex_shader_code, NULL);
+    glCompileShader(vertex_shader);
+
+    // Check for compile errors
+    GLint success;
+    GLchar infoLog[512];
+    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(vertex_shader, sizeof(infoLog), NULL, infoLog);
+        fprintf(stderr, "Vertex shader compilation failed:\n%s\n", infoLog);
+        exit(1);
+    }
+
+    // Create, compile, and check fragment shader
+    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragment_shader, 1, &fragment_shader_code, NULL);
+    glCompileShader(fragment_shader);
+
+    // Check for compile errors
+    glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(fragment_shader, sizeof(infoLog), NULL, infoLog);
+        fprintf(stderr, "Fragment shader compilation failed:\n%s\n", infoLog);
+        exit(1);
+    }
+
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertex_shader);
+    glAttachShader(program, fragment_shader);
+    glLinkProgram(program);
+    obj->program = program;
+
+    glGenVertexArrays(1, &obj->vao);
+    glBindVertexArray(obj->vao);
+
+    // VBO
+    glGenBuffers(1, &obj->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, obj->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), (void*)vertices, GL_STATIC_DRAW);
+
+    // EBO
+    glGenBuffers(1, &obj->ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), (void*)indices, GL_STATIC_DRAW);
+
+    // VAO
+    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(float)*8, (void*)(0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(float)*8, (void*)(3*sizeof(float)));
+    glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(float)*8, (void*)(5*sizeof(float)));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+void draw_square(struct gl_object * obj, bool draw_indexed) 
+{
+    if (!obj->init) 
+    {
+        init_square(obj);
+        obj->init = true;
+    }
+
+    glBindVertexArray(obj->vao);
+    glUseProgram(obj->program);
+    if (draw_indexed) 
+    {
+        glDrawElements(obj->draw_method, obj->draw_count, GL_UNSIGNED_INT, NULL);
+    }
 }
