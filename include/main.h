@@ -17,4 +17,15 @@ struct gl_object {
 };
 
 
+struct scene_object {
+    struct gl_object *renderable;
+    float position[3];
+    float size[3];
+};
+
+
+void init_square(struct gl_object * obj);
+void draw_square(struct scene_object * obj, bool draw_indexed);
+
+
 #endif 

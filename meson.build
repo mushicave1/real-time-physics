@@ -18,4 +18,4 @@ deps += glad_proj.get_variable('glad_dep')
 
 inc = include_directories('include')
 
-executable('real-time-physics', ['src/main.c'], dependencies: deps, include_directories: inc)
+executable('real-time-physics', ['src/main.c', 'src/math.c'], dependencies: deps, include_directories: inc)
